@@ -429,7 +429,7 @@ int getsetgpio(int gpio_base, int gpio, int val) {
         FILE *f;
         if (f = popen("lcdval", "r"))
           { fscanf(f, "%d", &lcd); pclose(f); }
-        if (f = popen("kbdval", "r"))
+        if (f = popen("kbval", "r"))
           { fscanf(f, "%d", &kbd); pclose(f); }
         system("lcdoff") ;
         system("kbledsoff") ;
