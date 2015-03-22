@@ -168,7 +168,7 @@ void processEvent(struct input_event evt) {
             //middle  mouse
             send_event(ufile, EV_KEY, BTN_LEFT, evt.value);
             break;
-
+# if 0 /* F1 is already on the HOME key.  What was this for? */
 		case 104:
 	    //F1
 	    send_event(ufile, EV_KEY, KEY_F1, evt.value);
@@ -177,6 +177,7 @@ void processEvent(struct input_event evt) {
 	    //F5
 	    send_event(ufile, EV_KEY, KEY_F5, evt.value);
 	    break;
+#endif
  		default:
 #if 0
             printf("PASS ");
@@ -200,50 +201,51 @@ void processEvent(struct input_event evt) {
 	int lcd, kbd;
 	FILE *f;
         switch(evt.code) {
-	case 166:
-	  // Stop button
+	case 74: // Vol- button        // case 166: // Stop button
 	  if ((evt.type == EV_KEY) && (evt.value == 1)) {
-	    if (alt) {
+	    if (shf) {
 	      if (f = popen("kbval", "r")) {
 		fscanf(f, "%d", &kbd); pclose(f); 
-		kbd -= 25; if (kbd < 0) kbd = 0;
+		kbd -= 50; if (kbd < 0) kbd = 0;
 		sprintf(cmd, "kbbrightness %d", kbd);
 		system(cmd);
+		return;
 	      }
-	    } else {
+	    } else if (alt) {
 	      if (f = popen("lcdval", "r")) {
 	        fscanf(f, "%d", &lcd); pclose(f); 
-		lcd -= 25; if (lcd < 0) lcd = 0;
+		lcd -= 50; if (lcd < 0) lcd = 0;
 		sprintf(cmd, "lcdbrightness %d", lcd);
 		system(cmd);
+		return;
 	      }
 	    }
 	  }
 	  break;
-	case 200:
-	  // Play button
+	case 78: // Vol+ button        // case 200: // Play button
 	  if ((evt.type == EV_KEY) && (evt.value == 1)) {
-	    if (alt) {
+	    if (shf) {
 	      if (f = popen("kbval", "r")) {
 		fscanf(f, "%d", &kbd); pclose(f);
-		kbd += 25; if (kbd > 500) kbd = 500;
+		kbd += 50; if (kbd > 500) kbd = 500;
 		sprintf(cmd, "kbbrightness %d", kbd);
 		system(cmd);
+		return;
 	      }
-	    } else {
+	    } else if (alt) {
 	      if (f = popen("lcdval", "r")) {
 		fscanf(f, "%d", &lcd); pclose(f); 
-		lcd += 25; if (lcd > 500) lcd = 500;
+		lcd += 50; if (lcd > 500) lcd = 500;
 		sprintf(cmd, "lcdbrightness %d", lcd);
 		system(cmd);
+		return;
 	      }
 	    }
 	  }
-	  break;
-	default:
-	  send_event(ufile, EV_KEY,evt.code, evt.value);
-	  send_event(ufile, EV_SYN, SYN_REPORT, 0);
 	}
+	// Normal key handling.
+	send_event(ufile, EV_KEY,evt.code, evt.value);
+	send_event(ufile, EV_SYN, SYN_REPORT, 0);
     }
 			 
     //printf("outside\n");
