@@ -200,9 +200,17 @@ void processEvent(struct input_event evt) {
         char cmd[32];
 	int lcd, kbd;
 	FILE *f;
-        switch(evt.code) {
-	case 74: // Vol- button        // case 166: // Stop button
-	  if ((evt.type == EV_KEY) && (evt.value == 1)) {
+	if ((evt.type == EV_KEY) && (evt.value == 1)) {
+	  switch(evt.code) {
+	  case 200: // Play button
+	    sprintf(cmd, "OnPlay");
+	    system(cmd);
+	    return;
+	  case 166: // Stop button
+	    sprintf(cmd, "OnStop");
+	    system(cmd);
+	    return;
+	  case 74: // Vol- button        
 	    if (shf) {
 	      if (f = popen("kbval", "r")) {
 		fscanf(f, "%d", &kbd); pclose(f); 
@@ -220,10 +228,8 @@ void processEvent(struct input_event evt) {
 		return;
 	      }
 	    }
-	  }
-	  break;
-	case 78: // Vol+ button        // case 200: // Play button
-	  if ((evt.type == EV_KEY) && (evt.value == 1)) {
+	    break;
+	  case 78: // Vol+ button
 	    if (shf) {
 	      if (f = popen("kbval", "r")) {
 		fscanf(f, "%d", &kbd); pclose(f);

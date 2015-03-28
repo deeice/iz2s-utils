@@ -1,0 +1,10 @@
+#!/bin/sh
+
+on4=$(ps |grep tty4)
+
+if [ -z "$on4" ] ; then
+  sendtty /dev/tty0 " "
+else
+  sendtty /dev/tty4 " "
+fi
+

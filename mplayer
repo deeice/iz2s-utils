@@ -1,0 +1,16 @@
+
+# Hide text cursor on screen.
+# No need to chvt.  Mplayer uses this tty.
+#chvt 2
+busybox echo -e "\033[?25l" > /dev/tty0
+#chvt 1
+
+#mplayer-10rc2 $*
+#mplayer-10rc2 $* -vo fbdev -vf rotate=2,scale=240:320
+mplayer-10rc2 $* -vo fbdev -vf rotate=2
+
+# Un-hide cursor
+busybox echo -e "\033[?25h" > /dev/tty0
+
+# Clear mess left on screen.
+clear

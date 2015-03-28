@@ -1,0 +1,90 @@
+#!/bin/sh
+
+#save videos here
+viddir=/mnt/sd0/video
+
+killall mpg123 2>/dev/null
+killall mplayer 2>/dev/null
+killall movgrab 2>/dev/null
+#I think deallocvt nukes the rotate setting on tty4
+deallocvt
+
+vidlink=$(head -1 "$1")
+#echo "playing ${vidlink}"
+
+viddata=`movgrab -st 30 -T $vidlink -o - 2>&1`
+vidname=$(echo ${vidlink} | cut -d "=" -f 2)
+#This would be nice, but spaces in the title make it painful
+#vidname=$(echo ${viddata} | grep "TEST MODE" | cut -d "'" -f 2)
+#echo "file is ${vidname}"
+if [ ! -d "$viddir" ] ; then
+	mkdir "$viddir"
+fi
+vidname="${viddir}/${vidname}.3gp"
+if [ ! -d "$viddir" ] ; then
+	# Try a fifo.  limited to 64K on iz2s kernel.
+	rm -f /tmp/vidfifo
+	mkfifo /tmp/vidfifo
+	vidname=/tmp/vidfifo
+fi
+#echo "saving ${vidname}"
+
+format=3gp:400x240
+
+available=$(echo ${viddata} | grep -e ${format})
+
+if [ -z "$available" ]; then
+	format=3gp:176x144
+fi
+	
+#echo "format ${format}"
+#echo ""
+#echo "${viddata}"
+
+#exit
+
+oldtty=$(fgconsole)
+
+# Double background to detach movgrab from tty and reparent to init.
+(movgrab -q -f $format ${vidlink} -o ${vidname} 2>/dev/null &) &
+# Buffer up a second or two of video.
+sleep 2
+
+# Go to tty4 and unrotate it for the display
+chvt 4
+echo 3 > /sys/class/graphics/fbcon/rotate
+# Buffer up another second or two of video.  Youtube sux...
+echo "Buffering" >/dev/tty4
+echo "" >/dev/tty4
+echo "10..." >/dev/tty4
+sleep 1
+echo "9..." >/dev/tty4
+sleep 1
+echo "8..." >/dev/tty4
+sleep 1
+echo "7..." >/dev/tty4
+sleep 1
+echo "6..." >/dev/tty4
+sleep 1
+echo "5..." >/dev/tty4
+sleep 1
+echo "4..." >/dev/tty4
+sleep 1
+echo "3..." >/dev/tty4
+sleep 1
+echo "2..." >/dev/tty4
+sleep 1
+echo "1..." >/dev/tty4
+sleep 1
+echo "and...Go!" >/dev/tty4
+sleep 1
+# Hide text cursor on screen.
+busybox echo -e "\033[?25l" > /dev/tty0
+own-tty /dev/tty4 /mnt/sd0/bin/mplayer-10rc2 mplayer-10rc2 ${vidname} -vo fbdev -vf rotate=2 -cache 8192 -lavdopts fast:skiploopfilter=bidir:skipframe=bidir -framedrop -fs -autosync 30
+# Un-hide cursor
+busybox echo -e "\033[?25h" > /dev/tty0
+#clear
+sleep 1
+chvt $oldtty
+
+#openvt -c 4 `movgrab -st 30 -b -f ${format} -o - $(cat ${1}) | mplayer -mc 10 -cache 1024 -lavdopts fast:skipframe=nonref -autosync 30 - 2>/dev/null`
