@@ -4,7 +4,7 @@ busybox echo -e "\033[?25l" > /dev/tty0
 
 #mplayer-10rc2 ${1} -vo fbdev -vf rotate=2 -mc 10 -cache 1024 -lavdopts fast:skipframe=nonref -autosync 30 2>/dev/null
 
-mplayer-10rc2 ${1} -vo fbdev -vf rotate=2 -lavdopts fast:skiploopfilter=bidir:skipframe=nonref -framedrop  -fs
+mplayer-10rc2 -vo fbdev -vf rotate=2 -lavdopts fast:skiploopfilter=bidir:skipframe=nonref -framedrop -fs ${1+"$@"}
 
 #mplayer-10rc2 ${1} -vo fbdev -vf rotate=2,expand=320:240 -lavdopts fast:skiploopfilter=bidir:skipframe=bidir -framedrop  -fs 
 

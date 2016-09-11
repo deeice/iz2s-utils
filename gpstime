@@ -1,0 +1,162 @@
+# !bin/sh
+#
+# getloc - read GPS location and echo status, latitude and longitude
+#          separated by a space. Status 0 is success.
+ 
+# set the GPS port and speed
+gpsport=/dev/ttyS1
+gpsspeed=9600
+# define the file for storing the current position (maybe useful for other things ;-)
+posdata=/tmp/position.gps
+locdata=/tmp/location.gps
+
+closePort() {
+  exec 5<&-
+}
+ 
+openPort() {
+  stty -F $gpsport $gpsspeed
+  exec 5<$gpsport
+}
+ 
+# Pass the GPS value and direction (N/S/E/W) to get the
+# decimal latitude/longitude.
+gpsDecimal() {
+    gpsVal=$1
+    gpsDir="$2"
+    # Integer part of the lat/long
+    gpsInt=`echo "scale=0;$gpsVal/100" | bc`
+    # Minutes part of the lat/long
+    gpsMin=`echo "scale=3;$gpsVal-100*$gpsInt" | bc`
+    # Convert minutes to a full decimal value
+    gpsDec=`echo "scale=5;$gpsInt+$gpsMin/60" | bc`
+    # South and West are negative
+    if [ $gpsDir = "W" -o $gpsDir = "S" ]
+    then
+      gpsDec="-$gpsDec"
+    fi
+    echo $gpsDec
+}
+ 
+# Return statuses
+STATUS_OK=0
+STATUS_NOFIX_SATDATA=1
+STATUS_TIMEOUT=2
+STATUS_NOTFOUND=3
+STATUS_NOFIX_LOCDATA=4
+ 
+# Status and counter values
+foundReliability='false'
+foundLocation='false'
+linesRead=0
+ 
+openPort
+while [ $linesRead -le 100 ]
+do
+  # Read the next line from the GPS port, with a timeout of 10 seconds.
+  read -t 10 RESPONSE <&5
+  if [ $? -eq 1 ]
+  then
+    # Read timed out so bail with error
+    closePort
+    echo "$STATUS_TIMEOUT 0 0"
+    exit 1
+  fi
+ 
+  # Fallthrough: line was read. Count it because we have a threshhold
+  # for the number of sentences to process before giving up.
+  linesRead=`expr $linesRead + 1`
+ 
+  # Get the sentence type.
+  sentenceType=`echo $RESPONSE | cut -d',' -f1`
+ 
+  #echo $sentenceType
+
+  if [ $sentenceType = '$GPGSA' -a $foundReliability = 'false' ]
+  then
+    #echo "$RESPONSE"
+
+    # Found the "fix information" sentence; see if the reliability
+    # is at least 2.
+    fixValue=`echo $RESPONSE | cut -d',' -f3`
+    #echo "$fixValue"
+    if [ $fixValue -ne 2 -a $fixValue -ne 3 ]
+    then
+      # Insufficient fix quality so bail with error
+      closePort
+      echo "$STATUS_NOFIX_SATDATA 0 0"
+      exit 1
+    fi
+    # Fallthrough: reliability is sufficient
+    foundReliability='true'
+    #echo "foundReliability=$foundReliability"
+  fi # GPGSA sentence
+ 
+  # $GPRMC,141220.00,A,xxxx.06666,N,xxxxx.26833,W,0.064,,100916,,,D*65
+  if [ $sentenceType = '$GPRMC' -a $foundLocation = 'false' ]
+  then
+    # Found the "recommended minimum data" (GPRMC) sentence;
+    # determine if it's "active", which means "valid".
+    #
+    statusValue=`echo $RESPONSE | cut -d',' -f3`
+    if [ $statusValue = 'V' ]
+    then
+      # Void status; can't use the reading so bail
+      closePort
+      echo "$STATUS_NOFIX_LOCDATA 0 0"
+      exit 1
+    fi
+ 
+    #echo "$RESPONSE"
+    #echo "$statusValue"
+
+    # extract the components of the date/time out of the GPRMC sentence
+    #   1      2       3     4      5      6      7    8  9  10 11 12 13
+    # $GPRMC,141220.00,A,xxxx.06666,N,xxxxx.26833,W,0.064,,100916,,,D*65
+    gpsdate=`echo $RESPONSE | cut -d',' -f10`
+    gpstime=`echo $RESPONSE | cut -d',' -f2`
+    gpsdate_DD=$(expr substr "$gpsdate" 1 2)
+    gpsdate_MM=$(expr substr "$gpsdate" 3 2)
+    gpsdate_YY=$(expr substr "$gpsdate" 5 2)
+    gpstime_hh=$(expr substr "$gpstime" 1 2)
+    gpstime_mm=$(expr substr "$gpstime" 3 2)
+    gpstime_ss=$(expr substr "$gpstime" 5 2)
+    # execute the set date command with the data from GPRMC sentence
+    # date -u -s $gpsdate_MM$gpsdate_DD$gpstime_hh$gpstime_mm"20"$gpsdate_YY"."$gpstime_ss
+    #echo "date -u -s 20$gpsdate_YY$gpsdate_MM$gpsdate_DD$gpstime_hh$gpstime_mm"."$gpstime_ss"
+    date -u -s 20$gpsdate_YY$gpsdate_MM$gpsdate_DD$gpstime_hh$gpstime_mm"."$gpstime_ss >/dev/null
+    #date
+
+    # Fallthrough: active status, so we can use the reading.
+    foundLocation='true'
+    #echo "foundLocation=$foundLocation"
+    latitudeValue=`echo $RESPONSE | cut -d',' -f4`
+    latitudeNS=`echo $RESPONSE | cut -d',' -f5`
+    latitudeDec=$(gpsDecimal $latitudeValue "$latitudeNS")
+    longitudeValue=`echo $RESPONSE | cut -d',' -f6`
+    longitudeEW=`echo $RESPONSE | cut -d',' -f7`
+    longitudeDec=$(gpsDecimal $longitudeValue "$longitudeEW")
+  fi # $GPRMC sentence
+
+  if [ $foundReliability = 'true' -a $foundLocation = 'true' ]
+  then
+      linesRead=`expr $linesRead + 200`
+  fi
+
+done # read-line loop
+ 
+closePort
+ 
+# If we get to here and location and reliability were OK, we
+# have a fix.
+if [ $foundReliability = 'true' -a $foundLocation = 'true' ]
+then
+  echo "$STATUS_OK $latitudeDec $longitudeDec"
+  echo "$latitudeDec, $longitudeDec" > $locdata
+  exit 0
+fi
+ 
+# Fallthrough to here means too many lines were read without
+# finding location information. Return failure.
+echo "$STATUS_NOTFOUND 0 0"
+exit 1
